@@ -196,6 +196,11 @@ def get_composite_data_list(key: str, opts_: Dict, data: Dict) -> Dict:
         d = dat[opts["base"]].copy()
         if bool(opts) is False:
             continue
+        if "exp" in opts and bool(opts["exp"]) is not False:
+            if isinstance(opts["exp"], str):
+                d = np.exp(dat[opts["exp"]] * d)
+            else:
+                d = np.exp(opts["exp"] * d)
         if "frac" in opts and bool(opts["frac"]) is not False:
             if isinstance(opts["frac"], str):
                 d = d / dat[opts["frac"]]
