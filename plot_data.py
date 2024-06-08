@@ -197,7 +197,9 @@ def get_composite_data_list(key: str, opts_: Dict, data: Dict) -> Dict:
         if bool(opts) is False:
             continue
         if "expr" in opts and bool(opts["expr"]) is not False:
-            exec(opts["expr"])  # format d=d*dat["different data vector"]
+            exec(
+                "d=" + opts["expr"].replace("data[", "dat[")
+            )  # format d*data["different data vector"]
         if "exp" in opts and bool(opts["exp"]) is not False:
             if isinstance(opts["exp"], str):
                 d = np.exp(dat[opts["exp"]] * d)
