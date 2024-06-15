@@ -1,7 +1,9 @@
+from io import StringIO
 from typing import Dict, List, Any, Tuple
 from matplotlib import _preprocess_data, pyplot as plt
 from matplotlib.figure import Figure
 import numpy as np
+import scipy as sp
 import os
 import json
 import re
@@ -22,6 +24,30 @@ def data_preprocessor(folder: str):
                 for line in f:
                     l = line.replace(",", ".").replace(" 	", ",")
                     nf.write(l)
+
+
+def data_preprocessor_1(folder: str):
+    for name in os.listdir(folder):
+        lines = []
+        with open(folder + "/" + name, "r") as f:
+            lines = f.readlines()
+        with open(folder + "/" + name, "w") as f:
+            for line in lines:
+                rep = False
+                for c in line:
+                    if c == '"' and not rep:
+                        rep = True
+                        continue
+                    elif c == '"' and rep:
+                        rep = False
+                        continue
+                    if rep:
+                        if c == ",":
+                            f.write(".")
+                        else:
+                            f.write(c)
+                    else:
+                        f.write(c)
 
 
 def get_data(filename: str) -> np.ndarray:
@@ -56,6 +82,8 @@ def sort_subplots(subplots: Dict, elements: Dict):
             }
         )
     for key, element in elements.items():
+        if element is None or element is False:
+            continue
         subplots[element["subplot"]]["plots"].append(element)
     return subplots
 
@@ -80,6 +108,17 @@ def plot_subplot(
         else:
             x = data[plot["xcol"]]
             y = data[plot["ycol"]]
+        if "errorbar" in plot and plot["errorbar"] is not False:
+            axes[plot["axis"]].errorbar(
+                x,
+                y,
+                yerr=data[plot["errorbar"]["yerror"]],
+                marker="None",
+                linestyle="None",
+                color=plot["errorbar"]["color"],
+                linewidth=plot["errorbar"]["linewidth"],
+                capsize=plot["errorbar"]["capsize"],
+            )
         (tmp,) = axes[plot["axis"]].plot(
             x,
             y,
@@ -197,9 +236,33 @@ def get_composite_data_list(key: str, opts_: Dict, data: Dict) -> Dict:
         if bool(opts) is False:
             continue
         if "expr" in opts and bool(opts["expr"]) is not False:
+            _locals = locals()
+            # _data_vector -> data['data_vector']
+            replace_c: bool = False
+            arr: List[str] = []
+            for i, c in enumerate(opts["expr"]):
+                if c == "_":
+                    replace_c = True
+                    arr.append("data['")
+                    continue
+                if not (c.isalpha() or c.isdecimal() or c == "_") and replace_c:
+                    arr.append("']")
+                    arr.append(c)
+                    replace_c = False
+                    continue
+                arr.append(c)
+
             exec(
-                "d=" + opts["expr"].replace("data[", "dat[")
+                "".join(arr), globals(), _locals
             )  # format d*data["different data vector"]
+            d = _locals["d"]
+        if "expr_s" in opts and bool(opts["expr"]) is not False:
+            _locals = locals()
+            exec(
+                "d=" + opts["expr"].replace("data[", "dat["), globals(), _locals
+            )  # format d*data["different data vector"]
+            d = _locals["d"]
+
         if "exp" in opts and bool(opts["exp"]) is not False:
             if isinstance(opts["exp"], str):
                 d = np.exp(dat[opts["exp"]] * d)
@@ -269,16 +332,19 @@ def analyse_data(data: Dict) -> None:
             for m, ddata in meas.items():
                 if n == m:
                     continue
-                diff = np.diff(datap) / np.diff(ddata)
-                dp.update(
-                    {
-                        f"max d/d{m}": np.max(diff),
-                        f"min d/d{m}": np.min(diff),
-                        f"avg d/d{m}": np.average(diff),
-                        f"mean d/d{m}": np.mean(diff),
-                        f"median d/d{m}": np.median(diff),
-                    }
-                )
+                try:
+                    diff = np.diff(datap) / np.diff(ddata)
+                    dp.update(
+                        {
+                            f"max d/d{m}": np.max(diff),
+                            f"min d/d{m}": np.min(diff),
+                            f"avg d/d{m}": np.average(diff),
+                            f"mean d/d{m}": np.mean(diff),
+                            f"median d/d{m}": np.median(diff),
+                        }
+                    )
+                except ValueError:
+                    print("differentiation didnt work....")
             d.update({n: dp})
         dic.update({name: d})
     with open("./analysis.json", "w") as f:
@@ -320,4 +386,5 @@ def main():
 
 
 if __name__ == "__main__":
+    # data_preprocessor_1("data")
     main()
